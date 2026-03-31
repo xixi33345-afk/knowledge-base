@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智慧体检知识库 - V5.1</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+<!-- ══════════════ 登录遮罩 ══════════════ -->
+<div id="login-overlay" class="fixed inset-0 z-[200] bg-gradient-to-br from-slate-900 via-slate-800 to-blue-950 flex items-center justify-center p-4">
+    <div class="login-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+        <div class="bg-gradient-to-r from-blue-600 to-blue-700 px-8 py-8 text-center">
+            <div class="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+            </div>
+            <h1 class="text-xl font-bold text-white">智慧体检知识库引擎</h1>
+            <p class="text-blue-200 text-xs mt-1">V5.1 · 知识管理平台</p>
+        </div>
+        <div class="px-8 py-6 space-y-4">
+            <div>
+                <label class="block text-xs font-bold text-slate-500 mb-1.5">账号</label>
+                <input id="login-username" type="text" autocomplete="username"
+                    class="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition bg-slate-50"
+                    placeholder="请输入账号">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-500 mb-1.5">密码</label>
+                <input id="login-password" type="password" autocomplete="current-password"
+                    class="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition bg-slate-50"
+                    placeholder="请输入密码"
+                    onkeydown="if(event.key==='Enter') doLogin()">
+            </div>
+            <div id="login-error" class="text-red-500 text-xs text-center min-h-[16px] font-medium"></div>
+            <button onclick="doLogin()" class="w-full bg-blue-600 text-white py-2.5 rounded-lg font-bold text-sm hover:bg-blue-700 transition shadow-md">
+                登 录
+            </button>
+        </div>
+        <div class="px-8 pb-6">
+            <div class="bg-slate-50 rounded-lg p-3 text-xs text-slate-400 border border-slate-100">
+                <div class="font-bold text-slate-500 mb-1.5">演示账号</div>
+                <div class="space-y-1">
+                    <div class="flex justify-between"><span>系统管理员</span><span class="font-mono">admin / admin123</span></div>
+                    <div class="flex justify-between"><span>张主任</span><span class="font-mono">zhang / 123456</span></div>
+                    <div class="flex justify-between"><span>李医生</span><span class="font-mono">li / 123456</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════ 主应用（登录后显示） ══════════════ -->
+<div id="app" class="hidden h-screen flex flex-col overflow-hidden">
+
+<header class="bg-slate-900 text-white shadow-md shrink-0">
+    <div class="flex justify-between items-center px-6 py-3">
+        <h1 class="text-xl font-bold flex items-center gap-2">
+            <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.673.337a4 4 0 01-1.909.498 4 4 0 01-1.908-.498l-.674-.337a6 6 0 00-3.86-.517l-2.388.477a2 2 0 00-1.022.547l-.34.34a2 2 0 000 2.828l1.245 1.245A2 2 0 005.337 21h13.326a2 2 0 001.414-.586l1.245-1.245a2 2 0 000-2.828l-.34-.34z"></path></svg>
+            智慧体检知识库引擎 V5.1
+        </h1>
+        <div class="flex items-center gap-3 text-sm">
+            <div class="flex items-center gap-2 bg-slate-800 px-3 py-1.5 rounded-lg">
+                <div class="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-xs font-bold" id="header-user-avatar">管</div>
+                <span class="text-slate-200 text-xs" id="header-user-name">未登录</span>
+            </div>
+            <button onclick="doLogout()" class="text-slate-400 hover:text-white text-xs px-3 py-1.5 rounded-lg hover:bg-slate-700 transition border border-slate-700">退出</button>
+        </div>
+    </div>
+    <div class="flex px-6 bg-white border-b border-slate-200 text-sm">
+        <button onclick="switchTab('manage')" id="tab-manage" class="px-6 py-3 tab-active focus:outline-none transition">📚 1. 全局标准库维护</button>
+        <button onclick="switchTab('override')" id="tab-override" class="px-6 py-3 tab-inactive focus:outline-none transition">🏥 2. 医院定制库 (Override)</button>
+        <button onclick="switchTab('wordroot')" id="tab-wordroot" class="px-6 py-3 tab-inactive focus:outline-none transition">🌿 3. 词根表</button>
+        <button onclick="switchTab('sandbox')" id="tab-sandbox" class="px-6 py-3 tab-inactive focus:outline-none transition">🧪 4. 逻辑沙盒推演</button>
+    </div>
+</header>
+
+<main class="flex-1 overflow-hidden relative">
+
+    <!-- ══ 全局标准库 ══ -->
+    <div id="view-manage" class="h-full flex flex-col p-6 overflow-y-auto w-full absolute top-0 left-0 bg-slate-50">
+        <div class="flex justify-between items-center mb-3 shrink-0">
+            <div>
+                <h2 class="text-lg font-bold text-slate-700">全局标准库 (Base)</h2>
+                <p class="text-xs text-slate-500 mt-0.5">已启用"表头模糊识别"，兼容各种隐藏空格与换行符的 Excel。</p>
+            </div>
+            <div class="flex gap-2 flex-wrap justify-end">
+                <button onclick="toggleShowDeprecated()" id="btn-show-deprecated"
+                    class="bg-white text-slate-500 border border-slate-300 px-3 py-2 rounded shadow-sm hover:bg-slate-50 transition text-xs flex items-center gap-1">
+                    👁 显示已弃用 (0)
+                </button>
+                <button onclick="toggleModifyInfo()" id="btn-modify-info"
+                    class="bg-white text-slate-500 border border-slate-300 px-3 py-2 rounded shadow-sm hover:bg-slate-50 transition text-xs flex items-center gap-1">
+                    🕐 显示修改记录
+                </button>
+                <input type="file" id="excel-upload" class="hidden" accept=".xlsx,.xls,.csv" onchange="importExcel(event)">
+                <button onclick="document.getElementById('excel-upload').click()"
+                    class="bg-white text-slate-700 border border-slate-300 px-4 py-2 rounded shadow-sm hover:bg-slate-50 transition font-medium text-sm flex items-center gap-1">
+                    📥 导入 Excel
+                </button>
+                <button onclick="exportExcel()"
+                    class="bg-white text-slate-700 border border-slate-300 px-4 py-2 rounded shadow-sm hover:bg-slate-50 transition font-medium text-sm flex items-center gap-1">
+                    📤 导出 Excel
+                </button>
+                <button onclick="openMergeModal()"
+                    class="bg-blue-600 text-white px-5 py-2 rounded shadow-md hover:bg-blue-700 transition font-medium text-sm flex items-center gap-1">
+                    + 新增规则
+                </button>
+            </div>
+        </div>
+        <div id="manage-table-wrapper" class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden flex-1 flex flex-col hide-modify-cols">
+            <div class="overflow-x-auto flex-1">
+                <table class="w-full text-left border-collapse text-sm">
+                    <thead class="sticky top-0 bg-slate-100 z-10">
+                        <tr class="text-slate-600 border-b border-slate-200">
+                            <th class="p-3 font-semibold w-28">规则编号</th>
+                            <th class="p-3 font-semibold text-center w-20">人群</th>
+                            <th class="p-3 font-semibold w-24">科室</th>
+                            <th class="p-3 font-semibold w-20">部位</th>
+                            <th class="p-3 font-semibold text-center w-20">严重程度</th>
+                            <th class="p-3 font-semibold w-32">标签</th>
+                            <th class="p-3 font-semibold min-w-[180px]">规则转写</th>
+                            <th class="p-3 font-semibold min-w-[220px]">主检建议</th>
+                            <th class="p-3 font-semibold w-24 text-center modify-col bg-amber-50 text-amber-700">修改日期</th>
+                            <th class="p-3 font-semibold w-24 text-center modify-col bg-amber-50 text-amber-700">修改人</th>
+                            <th class="p-3 font-semibold text-center w-28 sticky right-0 bg-slate-100 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.05)]">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="mergeTableBody" class="divide-y divide-slate-100"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══ 医院定制库 ══ -->
+    <div id="view-override" class="h-full flex flex-col w-full absolute top-0 left-0 bg-slate-50 hidden">
+        <div id="ov-page-hospitals" class="h-full flex flex-col p-6 overflow-y-auto">
+            <div class="flex justify-between items-center mb-6 shrink-0">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-700">医院定制库</h2>
+                    <p class="text-xs text-slate-500 mt-1">选择一家医院进行个性化定制，或新增医院</p>
+                </div>
+                <button onclick="openAddHospitalModal()" class="bg-amber-500 text-white px-4 py-2 rounded shadow-md hover:bg-amber-600 transition font-bold text-sm">+ 新增医院</button>
+            </div>
+            <div id="hospital-cards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+            <div id="hospital-empty" class="hidden text-center text-slate-400 py-24 text-sm"><div class="text-4xl mb-3">🏥</div><div>暂无医院，请点击右上角"新增医院"</div></div>
+        </div>
+
+        <div id="ov-page-source" class="h-full flex flex-col p-6 overflow-y-auto hidden">
+            <div class="mb-6 shrink-0">
+                <div class="text-xs text-slate-400 mb-2 flex items-center gap-1">
+                    <button onclick="goToHospitals()" class="hover:text-amber-600 underline">医院列表</button>
+                    <span>›</span>
+                    <span id="ov-breadcrumb-hospital-name" class="text-slate-700 font-semibold"></span>
+                </div>
+                <h2 class="text-lg font-bold text-slate-700">选择数据来源</h2>
+                <p class="text-xs text-slate-500 mt-1">请选择如何初始化或更新该医院的定制数据</p>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-3xl">
+                <div class="ov-source-card hover:border-blue-400 group" onclick="chooseImportExcel()">
+                    <div class="w-14 h-14 bg-blue-50 rounded-full flex items-center justify-center text-2xl group-hover:bg-blue-100 transition">📥</div>
+                    <h3 class="font-bold text-slate-700 text-sm">导入 Excel</h3>
+                    <p class="text-xs text-slate-500 leading-relaxed">上传医院专属 Excel，批量覆盖对应条目的建议和严重程度</p>
+                    <input type="file" id="hospital-excel-upload" class="hidden" accept=".xlsx,.xls,.csv" onchange="importHospitalExcel(event)">
+                </div>
+                <div class="ov-source-card hover:border-green-400 group" onclick="chooseReferenceGlobal()">
+                    <div class="w-14 h-14 bg-green-50 rounded-full flex items-center justify-center text-2xl group-hover:bg-green-100 transition">🔗</div>
+                    <h3 class="font-bold text-slate-700 text-sm">引用全局标准库</h3>
+                    <p class="text-xs text-slate-500 leading-relaxed">将全局标准库的所有建议复制为本院初始定制，后续按需修改</p>
+                </div>
+                <div class="ov-source-card hover:border-amber-400 group" onclick="goToTable()">
+                    <div class="w-14 h-14 bg-amber-50 rounded-full flex items-center justify-center text-2xl group-hover:bg-amber-100 transition">📋</div>
+                    <h3 class="font-bold text-slate-700 text-sm">继续编辑</h3>
+                    <p id="ov-continue-desc" class="text-xs text-slate-500 leading-relaxed">查看并继续编辑已有的定制条目</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="ov-page-table" class="h-full flex flex-col p-6 hidden">
+            <div class="flex justify-between items-center mb-4 shrink-0">
+                <div>
+                    <div class="text-xs text-slate-400 mb-1 flex items-center gap-1">
+                        <button onclick="goToHospitals()" class="hover:text-amber-600 underline">医院列表</button>
+                        <span>›</span>
+                        <button onclick="goToSource()" id="ov-table-breadcrumb-hospital" class="hover:text-amber-600 underline text-slate-500"></button>
+                        <span>›</span>
+                        <span class="text-slate-700">定制表格</span>
+                    </div>
+                    <h2 class="text-lg font-bold text-slate-700">医院定制库：<span id="ov-table-hospital-name" class="text-amber-700"></span></h2>
+                </div>
+                <div class="flex items-center gap-2 flex-wrap justify-end">
+                    <span class="flex items-center gap-1 text-xs text-slate-400"><span class="w-3 h-3 bg-white border border-slate-300 inline-block rounded-sm"></span> 继承全局</span>
+                    <span class="flex items-center gap-1 text-xs text-amber-600 font-bold mr-2"><span class="w-3 h-3 bg-amber-100 border border-amber-300 inline-block rounded-sm"></span> 本院已重写</span>
+                    <button onclick="toggleOvShowDeprecated()" id="btn-ov-show-deprecated"
+                        class="bg-white text-slate-500 border border-slate-300 px-3 py-2 rounded shadow-sm hover:bg-slate-50 transition text-xs flex items-center gap-1">
+                        👁 显示已弃用 (0)
+                    </button>
+                    <button onclick="toggleOvModifyInfo()" id="btn-ov-modify-info"
+                        class="bg-white text-slate-500 border border-slate-300 px-3 py-2 rounded shadow-sm hover:bg-slate-50 transition text-xs flex items-center gap-1">
+                        🕐 显示修改记录
+                    </button>
+                    <button onclick="openExportOverrideModal()"
+                        class="bg-white text-slate-700 border border-slate-300 px-3 py-2 rounded shadow-sm hover:bg-slate-50 transition text-xs flex items-center gap-1">
+                        📤 导出定制表
+                    </button>
+                    <button onclick="openAiModal()" class="bg-purple-600 text-white px-4 py-2 rounded shadow-md hover:bg-purple-700 transition font-bold text-sm">🤖 批量AI修改建议</button>
+                </div>
+            </div>
+            <div id="ov-table-wrapper" class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden flex-1 flex flex-col min-h-0 hide-modify-cols">
+                <div class="overflow-auto flex-1">
+                    <table class="w-full text-left border-collapse text-sm">
+                        <thead class="sticky top-0 bg-slate-800 text-white z-10">
+                            <tr>
+                                <th class="p-3 font-semibold w-24">规则编号</th>
+                                <th class="p-3 font-semibold text-center w-20">人群</th>
+                                <th class="p-3 font-semibold w-24">科室</th>
+                                <th class="p-3 font-semibold w-20">部位</th>
+                                <th class="p-3 font-semibold text-center w-24">严重程度</th>
+                                <th class="p-3 font-semibold w-36">标签</th>
+                                <th class="p-3 font-semibold min-w-[200px]">规则转写</th>
+                                <th class="p-3 font-semibold min-w-[320px]">主检建议 (对比视图)</th>
+                                <th class="p-3 font-semibold w-24 text-center modify-col bg-amber-900/30">修改日期</th>
+                                <th class="p-3 font-semibold w-24 text-center modify-col bg-amber-900/30">修改人</th>
+                                <th class="p-3 font-semibold w-28 text-center sticky right-0 bg-slate-800">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="overrideTableBody" class="divide-y divide-slate-200"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══ 沙盒推演 ══ -->
+    <!-- ══ 词根表 ══ -->
+    <div id="view-wordroot" class="h-full flex flex-col p-6 overflow-y-auto w-full absolute top-0 left-0 bg-slate-50 hidden">
+        <div class="flex justify-between items-center mb-3 shrink-0">
+            <div>
+                <h2 class="text-lg font-bold text-slate-700">词根表</h2>
+                <p class="text-xs text-slate-500 mt-0.5">管理检查/检验/体征等项目的词根映射，支持导入、导出、编辑和弃用。</p>
+            </div>
+            <div class="flex gap-2 flex-wrap justify-end">
+                <input type="text" id="wr-search" oninput="renderWordRootTable()" placeholder="🔍 搜索词根细分/所属情况/科室..."
+                    class="border border-slate-300 rounded px-3 py-2 text-xs focus:ring-2 focus:ring-green-500 outline-none w-52">
+                <button onclick="toggleWrShowDeprecated()" id="btn-wr-deprecated"
+                    class="bg-white text-slate-500 border border-slate-300 px-3 py-2 rounded shadow-sm hover:bg-slate-50 transition text-xs flex items-center gap-1">
+                    👁 显示已弃用 (0)
+                </button>
+                <button onclick="toggleWrModifyInfo()" id="btn-wr-modify-info"
+                    class="bg-white text-slate-500 border border-slate-300 px-3 py-2 rounded shadow-sm hover:bg-slate-50 transition text-xs flex items-center gap-1">
+                    🕐 显示修改记录
+                </button>
+                <input type="file" id="wr-excel-upload" class="hidden" accept=".xlsx,.xls,.csv" onchange="importWordRootExcel(event)">
+                <button onclick="document.getElementById('wr-excel-upload').click()"
+                    class="bg-white text-slate-700 border border-slate-300 px-4 py-2 rounded shadow-sm hover:bg-slate-50 transition font-medium text-sm flex items-center gap-1">
+                    📥 导入 Excel
+                </button>
+                <button onclick="exportWordRootExcel()"
+                    class="bg-white text-slate-700 border border-slate-300 px-4 py-2 rounded shadow-sm hover:bg-slate-50 transition font-medium text-sm flex items-center gap-1">
+                    📤 导出 Excel
+                </button>
+                <button onclick="openWrModal()"
+                    class="bg-green-600 text-white px-5 py-2 rounded shadow-md hover:bg-green-700 transition font-medium text-sm flex items-center gap-1">
+                    + 新增词根
+                </button>
+            </div>
+        </div>
+        <div id="wr-table-wrapper" class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden flex-1 flex flex-col hide-modify-cols">
+            <div class="overflow-x-auto flex-1">
+                <table class="w-full text-left border-collapse text-sm">
+                    <thead class="sticky top-0 bg-slate-100 z-10">
+                        <tr class="text-slate-600 border-b border-slate-200">
+                            <th class="p-3 font-semibold w-20 text-center">项目分类</th>
+                            <th class="p-3 font-semibold w-24">科室</th>
+                            <th class="p-3 font-semibold w-28">部位/检验组套</th>
+                            <th class="p-3 font-semibold min-w-[140px]">所属情况</th>
+                            <th class="p-3 font-semibold w-32">词根粗分</th>
+                            <th class="p-3 font-semibold min-w-[160px]">词根细分</th>
+                            <th class="p-3 font-semibold min-w-[220px]">AI推理依据</th>
+                            <th class="p-3 font-semibold w-24 text-center modify-col bg-amber-50 text-amber-700">修改日期</th>
+                            <th class="p-3 font-semibold w-24 text-center modify-col bg-amber-50 text-amber-700">修改人</th>
+                            <th class="p-3 font-semibold text-center w-24 sticky right-0 bg-slate-100 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.05)]">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="wrTableBody" class="divide-y divide-slate-100"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="view-sandbox" class="h-full flex flex-col p-6 overflow-y-auto w-full absolute top-0 left-0 bg-slate-50 hidden">
+        <h2 class="text-lg font-bold text-slate-700 mb-4">引擎推演沙盒</h2>
+        <div class="flex gap-6 flex-1 min-h-0">
+            <div class="w-80 bg-white p-5 rounded-lg shadow-sm border border-slate-200 flex flex-col gap-4 overflow-y-auto shrink-0">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">患者性别</label>
+                    <div class="flex bg-slate-100 p-1 rounded">
+                        <button onclick="setSandboxGender('男')" id="sb-btn-male" class="flex-1 py-1.5 text-sm rounded transition bg-white shadow-sm text-blue-600 font-bold border border-blue-200">男</button>
+                        <button onclick="setSandboxGender('女')" id="sb-btn-female" class="flex-1 py-1.5 text-sm rounded transition text-slate-500 hover:bg-slate-200">女</button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">触发异常词 (逗号隔开)</label>
+                    <textarea id="sb-terms" class="w-full border border-slate-300 rounded p-2 text-sm focus:ring-2 focus:ring-blue-500" rows="3">湿疹</textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">患者年龄</label>
+                    <input type="number" id="sb-age" class="w-full border border-slate-300 rounded p-2 text-sm focus:ring-2 focus:ring-blue-500" value="35">
+                </div>
+                <button onclick="runSandboxEngine()" class="mt-4 bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition shadow-lg active:scale-95">▶ 运行推演</button>
+            </div>
+            <div class="flex-1 flex flex-col gap-4 overflow-y-auto">
+                <div class="bg-white p-5 rounded-xl shadow-sm border-t-4 border-t-blue-500 flex-1 flex flex-col">
+                    <h3 class="font-bold text-blue-900 mb-3">📋 最终输出：结论与建议</h3>
+                    <div id="sb-final-advices" class="space-y-4 text-slate-400 italic text-sm flex-1 overflow-y-auto">点击左侧推演按钮查看结果...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+</div><!-- end #app -->
+
+<!-- ══════════════ 弹窗：编辑全局规则 ══════════════ -->
+<div id="mergeModal" class="fixed inset-0 bg-slate-900/60 hidden z-50 flex justify-center items-center backdrop-blur-sm p-4">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl flex flex-col overflow-hidden max-h-full">
+        <div class="px-6 py-4 bg-slate-50 border-b flex justify-between items-center">
+            <span class="font-bold text-slate-800 text-lg" id="merge-modal-title">新增规则</span>
+            <button onclick="closeMergeModal()" class="text-slate-400 hover:text-slate-600">✕</button>
+        </div>
+        <div class="p-6 overflow-y-auto space-y-5 bg-white custom-scroll" onclick="closeDropdownIfClickedOutside(event)">
+            <input type="hidden" id="fm-id">
+            <div class="grid grid-cols-4 gap-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1">规则编号 <span class="text-red-500">*</span></label>
+                    <input type="text" id="fm-code" oninput="checkFormValidity()" class="w-full border rounded p-2 text-sm bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none transition">
+                    <div id="fm-code-error" class="text-red-500 text-xs mt-1 min-h-[16px] font-medium"></div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1">适用人群</label>
+                    <select id="fm-gender" class="w-full border rounded p-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer">
+                        <option value="男女通用">男女通用</option>
+                        <option value="男">男</option>
+                        <option value="女">女</option>
+                    </select>
+                </div>
+                <div class="relative">
+                    <label class="block text-xs font-bold text-slate-500 mb-1">科室</label>
+                    <input type="text" id="fm-dept" class="w-full border rounded p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="🔍 搜索科室" autocomplete="off" onfocus="showDeptDropdown()" oninput="filterDeptDropdown(this.value)">
+                    <div id="dept-dropdown" class="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-xl max-h-60 overflow-y-auto custom-scroll hidden"></div>
+                </div>
+                <div class="relative">
+                    <label class="block text-xs font-bold text-slate-500 mb-1">部位</label>
+                    <input type="text" id="fm-part" class="w-full border rounded p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="🔍 搜索部位" autocomplete="off" onfocus="showPartDropdown()" oninput="filterPartDropdown(this.value)">
+                    <div id="part-dropdown" class="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-xl max-h-60 overflow-y-auto custom-scroll hidden"></div>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4 p-4 bg-blue-50/50 rounded-lg border border-blue-100">
+                <div>
+                    <label class="block text-xs font-bold text-blue-700 mb-1">严重程度</label>
+                    <input type="number" id="fm-severity" class="w-full border border-blue-200 rounded p-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-blue-700 mb-1">标签</label>
+                    <input type="text" id="fm-label" class="w-full border border-blue-200 rounded p-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+            </div>
+            <div class="relative">
+                <label class="block text-xs font-bold text-slate-500 mb-1">规则转写 <span class="text-red-500">*</span> <span class="text-slate-400 font-normal text-[11px]">（输入【可触发词根词条补全）</span></label>
+                <textarea id="fm-expression" oninput="checkFormValidity(); handleExprInput('fm-expression','expr-dropdown')" class="w-full border rounded p-3 font-mono text-sm h-16 bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none transition"></textarea>
+                <div id="expr-dropdown" class="absolute z-50 w-full bg-white border border-blue-200 rounded-lg shadow-xl max-h-48 overflow-y-auto custom-scroll hidden"></div>
+                <div id="fm-error" class="text-red-500 text-xs mt-1 min-h-[16px] font-medium"></div>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-500 mb-1">主检建议</label>
+                <textarea id="fm-advice" class="w-full border rounded p-3 text-sm h-20 focus:ring-2 focus:ring-blue-500 outline-none"></textarea>
+            </div>
+        </div>
+        <div class="px-6 py-4 border-t bg-slate-50 flex justify-end gap-3 shrink-0">
+            <button onclick="closeMergeModal()" class="px-5 py-2 text-sm text-slate-600 hover:bg-slate-200 rounded transition font-medium">取消</button>
+            <button id="btn-save-merge" onclick="saveMergeRule()" class="px-6 py-2 text-sm bg-blue-600 text-white rounded font-bold shadow-md hover:bg-blue-700 transition">保存规则</button>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════ 弹窗：编辑医院Override ══════════════ -->
+<div id="overrideModal" class="fixed inset-0 bg-slate-900/60 hidden z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+    <div class="bg-white rounded-xl w-full max-w-3xl shadow-2xl flex flex-col overflow-hidden" style="max-height:90vh">
+        <div class="px-6 py-4 bg-amber-50 border-b border-amber-100 flex justify-between items-center shrink-0">
+            <h3 class="text-lg font-bold text-amber-900">定制医院规则 (Override)</h3>
+            <button onclick="closeOverrideModal()" class="text-amber-700 hover:text-amber-900 text-xl leading-none">&times;</button>
+        </div>
+        <div class="p-6 space-y-4 overflow-y-auto custom-scroll">
+            <p class="text-xs text-slate-500">正在为 "<span id="ov-hospital-label" class="font-semibold text-amber-700"></span>" 定制规则 <span id="ov-code" class="font-mono font-bold text-slate-700"></span> — 各字段留空则继承全局值，无需填写</p>
+            <!-- 全局参考值 -->
+            <div class="p-3 bg-slate-50 rounded border border-slate-200 text-xs text-slate-600">
+                <div class="text-[10px] text-slate-400 mb-2 font-bold uppercase tracking-wider">全局标准 (Base) — 参考值</div>
+                <div class="grid grid-cols-4 gap-x-6 gap-y-1.5 mb-2">
+                    <span>科室：<b id="ov-baseDept" class="text-slate-700"></b></span>
+                    <span>部位：<b id="ov-basePart" class="text-slate-700"></b></span>
+                    <span>严重程度：<b id="ov-baseSeverity" class="font-mono text-red-600"></b></span>
+                    <span>标签：<b id="ov-baseLabel" class="text-slate-700"></b></span>
+                </div>
+                <div class="mb-1">规则转写：<code id="ov-baseExpression" class="bg-slate-200 px-1.5 py-0.5 rounded font-mono text-[11px] break-all"></code></div>
+                <div>主检建议：<span id="ov-standardText" class="text-slate-500 break-words"></span></div>
+            </div>
+            <!-- 定制字段 -->
+            <div class="grid grid-cols-2 gap-4 p-4 bg-amber-50/50 rounded-lg border border-amber-100">
+                <div class="relative">
+                    <label class="block text-xs font-bold text-amber-700 mb-1">定制科室 <span class="text-slate-400 font-normal">（留空继承）</span></label>
+                    <input type="text" id="ov-deptInput" class="w-full border border-amber-200 rounded p-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none" placeholder="留空则继承" autocomplete="off" onfocus="showOvDeptDropdown()" oninput="filterOvDeptDropdown(this.value)">
+                    <div id="ov-dept-dropdown" class="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-xl max-h-48 overflow-y-auto custom-scroll hidden"></div>
+                </div>
+                <div class="relative">
+                    <label class="block text-xs font-bold text-amber-700 mb-1">定制部位 <span class="text-slate-400 font-normal">（留空继承）</span></label>
+                    <input type="text" id="ov-partInput" class="w-full border border-amber-200 rounded p-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none" placeholder="留空则继承" autocomplete="off" onfocus="showOvPartDropdown()" oninput="filterOvPartDropdown(this.value)">
+                    <div id="ov-part-dropdown" class="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-xl max-h-48 overflow-y-auto custom-scroll hidden"></div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-amber-700 mb-1">定制严重程度 <span class="text-slate-400 font-normal">（留空继承）</span></label>
+                    <input type="number" id="ov-severityInput" class="w-full border border-amber-200 rounded p-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none" placeholder="如：3">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-amber-700 mb-1">定制标签 <span class="text-slate-400 font-normal">（留空继承）</span></label>
+                    <input type="text" id="ov-labelInput" class="w-full border border-amber-200 rounded p-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none" placeholder="留空则继承">
+                </div>
+            </div>
+            <div class="p-4 bg-amber-50/50 rounded-lg border border-amber-100 relative">
+                <label class="block text-xs font-bold text-amber-700 mb-1">定制规则转写 <span class="text-slate-400 font-normal">（留空继承，输入【触发词根补全）</span></label>
+                <textarea id="ov-expressionInput" oninput="handleExprInput('ov-expressionInput','ov-expr-dropdown')" class="w-full border border-amber-200 rounded p-2 font-mono text-sm h-14 focus:ring-2 focus:ring-amber-500 outline-none" placeholder="留空则继承全局规则转写"></textarea>
+                <div id="ov-expr-dropdown" class="absolute z-50 left-4 right-4 bg-white border border-amber-200 rounded-lg shadow-xl max-h-48 overflow-y-auto custom-scroll hidden"></div>
+                <div id="ov-expr-error" class="text-orange-500 text-xs mt-1 min-h-[16px] font-medium"></div>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-amber-700 mb-1">定制主检建议 <span class="text-slate-400 font-normal">（留空继承）</span></label>
+                <textarea id="ov-overrideInput" class="w-full border border-amber-200 rounded p-3 h-28 text-sm focus:ring-2 focus:ring-amber-500 outline-none" placeholder="输入医院个性化的话术..."></textarea>
+            </div>
+        </div>
+        <div class="px-6 py-4 border-t bg-slate-50 flex justify-end gap-3 shrink-0">
+            <button onclick="closeOverrideModal()" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-200 rounded transition">取消</button>
+            <button onclick="saveOverride()" class="px-6 py-2 bg-amber-500 text-white rounded font-bold text-sm shadow hover:bg-amber-600 transition">保存定制项</button>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════ 弹窗：新增医院 ══════════════ -->
+<div id="addHospitalModal" class="fixed inset-0 bg-slate-900/60 hidden z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+    <div class="bg-white rounded-xl w-[420px] shadow-2xl overflow-hidden">
+        <div class="px-6 py-4 bg-slate-50 border-b flex justify-between items-center">
+            <h3 class="text-lg font-bold text-slate-800">新增医院</h3>
+            <button onclick="closeAddHospitalModal()" class="text-slate-400 hover:text-slate-600 text-xl leading-none">✕</button>
+        </div>
+        <div class="p-6 space-y-4">
+            <div>
+                <label class="block text-xs font-bold text-slate-500 mb-1">医院名称 <span class="text-red-500">*</span></label>
+                <input type="text" id="new-hospital-name" class="w-full border rounded p-2.5 text-sm focus:ring-2 focus:ring-amber-500 outline-none" placeholder="如：北京协和医院体检中心" onkeydown="if(event.key==='Enter') saveNewHospital()">
+            </div>
+        </div>
+        <div class="px-6 py-4 border-t bg-slate-50 flex justify-end gap-3">
+            <button onclick="closeAddHospitalModal()" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-200 rounded transition">取消</button>
+            <button onclick="saveNewHospital()" class="px-6 py-2 bg-amber-500 text-white rounded font-bold text-sm shadow hover:bg-amber-600 transition">创建医院</button>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════ 弹窗：批量AI修改 ══════════════ -->
+<div id="aiModal" class="fixed inset-0 bg-slate-900/60 hidden z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+    <div class="bg-white rounded-xl w-[660px] shadow-2xl overflow-hidden">
+        <div class="px-6 py-4 bg-purple-50 border-b border-purple-100 flex justify-between items-center">
+            <h3 class="text-lg font-bold text-purple-900">🤖 批量AI修改建议</h3>
+            <button onclick="closeAiModal()" class="text-purple-700 hover:text-purple-900 text-xl leading-none">✕</button>
+        </div>
+        <div class="p-6 space-y-5">
+            <div>
+                <label class="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">修改范围</label>
+                <div class="flex gap-6">
+                    <label class="flex items-center gap-2 text-sm cursor-pointer">
+                        <input type="radio" name="ai-scope" value="all" checked class="accent-purple-600">
+                        全量修改（共 <span id="ai-scope-count-all" class="font-bold text-purple-700">0</span> 条）
+                    </label>
+                    <label class="flex items-center gap-2 text-sm cursor-pointer">
+                        <input type="radio" name="ai-scope" value="overridden" class="accent-purple-600">
+                        仅已重写（共 <span id="ai-scope-count-overridden" class="font-bold text-amber-600">0</span> 条）
+                    </label>
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">AI 提示词 <span class="text-slate-400 font-normal normal-case ml-1">描述你希望AI如何修改建议内容</span></label>
+                <textarea id="ai-prompt-input" rows="6" class="w-full border rounded p-3 text-sm focus:ring-2 focus:ring-purple-500 outline-none resize-none" placeholder="例如：&#10;• 将所有建议改为更温和、患者友好的口吻&#10;• 在每条建议末尾追加"请及时前往专科就诊"&#10;• 将建议中的"立即"替换为"尽快""></textarea>
+            </div>
+            <div id="ai-preview-area" class="hidden p-4 bg-purple-50 rounded-lg border border-purple-100">
+                <div class="text-xs font-bold text-purple-700 mb-2">预览效果（示例条目）：</div>
+                <div id="ai-preview-content" class="text-xs text-slate-700 leading-relaxed"></div>
+            </div>
+            <div class="p-3 bg-slate-50 rounded border border-slate-200 text-xs text-slate-500">
+                <b class="text-slate-700">说明：</b>AI将根据提示词对选定范围内的主检建议进行批量调整。建议先点击"预览效果"确认，再执行修改。
+            </div>
+        </div>
+        <div class="px-6 py-4 border-t bg-slate-50 flex justify-between items-center">
+            <button onclick="previewAiModify()" class="px-5 py-2 text-sm bg-slate-200 text-slate-700 hover:bg-slate-300 rounded font-medium transition">预览效果</button>
+            <div class="flex gap-3">
+                <button onclick="closeAiModal()" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-200 rounded transition">取消</button>
+                <button onclick="executeAiModify()" class="px-6 py-2 bg-purple-600 text-white rounded font-bold text-sm shadow hover:bg-purple-700 transition">执行AI修改</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════ 弹窗：确认弃用 ══════════════ -->
+<!-- ══════════════ 弹窗：词根 新增/编辑 ══════════════ -->
+<div id="wrModal" class="fixed inset-0 bg-slate-900/60 hidden z-50 flex justify-center items-center backdrop-blur-sm p-4">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden max-h-full">
+        <div class="px-6 py-4 bg-green-50 border-b border-green-100 flex justify-between items-center shrink-0">
+            <span class="font-bold text-green-900 text-lg" id="wr-modal-title">新增词根</span>
+            <button onclick="closeWrModal()" class="text-green-700 hover:text-green-900 text-xl leading-none">&times;</button>
+        </div>
+        <div class="p-6 space-y-4 overflow-y-auto custom-scroll">
+            <input type="hidden" id="wr-fm-id">
+            <div class="grid grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1">项目分类</label>
+                    <select id="wr-fm-category" class="w-full border rounded p-2 text-sm bg-white focus:ring-2 focus:ring-green-500 outline-none cursor-pointer">
+                        <option value="检查">检查</option>
+                        <option value="检验">检验</option>
+                        <option value="体征">体征</option>
+                        <option value="既往史">既往史</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1">科室（第一级分类）</label>
+                    <input type="text" id="wr-fm-dept" class="w-full border rounded p-2 text-sm focus:ring-2 focus:ring-green-500 outline-none" placeholder="如：心血管内科">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1">部位/检验组套（第二级）</label>
+                    <input type="text" id="wr-fm-part" class="w-full border rounded p-2 text-sm focus:ring-2 focus:ring-green-500 outline-none" placeholder="如：心脏">
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-500 mb-1">所属情况</label>
+                <input type="text" id="wr-fm-belong" class="w-full border rounded p-2 text-sm focus:ring-2 focus:ring-green-500 outline-none" placeholder="如：【心脏增大】【心超心脏功能异常】">
+            </div>
+            <div class="grid grid-cols-2 gap-4 p-4 bg-green-50/50 rounded-lg border border-green-100">
+                <div>
+                    <label class="block text-xs font-bold text-green-700 mb-1">词根粗分 <span class="text-slate-400 font-normal">（可选，为一组词根的分类）</span></label>
+                    <input type="text" id="wr-fm-rough" class="w-full border border-green-200 rounded p-2 text-sm bg-white focus:ring-2 focus:ring-green-500 outline-none" placeholder="如：肺结节">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-green-700 mb-1">词根细分 <span class="text-red-500">*</span></label>
+                    <input type="text" id="wr-fm-fine" class="w-full border border-green-200 rounded p-2 text-sm bg-white focus:ring-2 focus:ring-green-500 outline-none" placeholder="具体词根，如：左眼视力减退">
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-500 mb-1">AI推理依据</label>
+                <textarea id="wr-fm-ai-basis" class="w-full border rounded p-3 text-sm h-20 focus:ring-2 focus:ring-green-500 outline-none" placeholder="如：左眼视力或左眼裸眼视力小于或等于0.6…"></textarea>
+            </div>
+        </div>
+        <div class="px-6 py-4 border-t bg-slate-50 flex justify-end gap-3 shrink-0">
+            <button onclick="closeWrModal()" class="px-5 py-2 text-sm text-slate-600 hover:bg-slate-200 rounded transition font-medium">取消</button>
+            <button onclick="saveWrEntry()" class="px-6 py-2 text-sm bg-green-600 text-white rounded font-bold shadow-md hover:bg-green-700 transition">保存词根</button>
+        </div>
+    </div>
+</div>
+
+<!-- 导出定制表选项 Modal -->
+<div id="exportOverrideModal" class="fixed inset-0 bg-slate-900/60 hidden z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+    <div class="bg-white rounded-xl w-[420px] shadow-2xl overflow-hidden">
+        <div class="px-6 py-5">
+            <h3 class="text-base font-bold text-slate-800 mb-1">导出定制表</h3>
+            <p class="text-sm text-slate-500 mb-5">请选择导出格式：</p>
+            <div class="space-y-3">
+                <label class="flex items-start gap-3 p-3 rounded-lg border-2 border-slate-200 hover:border-blue-400 cursor-pointer has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50 transition">
+                    <input type="radio" name="export-ov-mode" value="withGlobal" class="mt-0.5 accent-blue-500" checked>
+                    <div>
+                        <div class="font-semibold text-slate-800 text-sm">包含全局对比</div>
+                        <div class="text-xs text-slate-500 mt-0.5">每字段同时显示"全局值"与"定制值"两列，方便逐项对比差异</div>
+                    </div>
+                </label>
+                <label class="flex items-start gap-3 p-3 rounded-lg border-2 border-slate-200 hover:border-blue-400 cursor-pointer has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50 transition">
+                    <input type="radio" name="export-ov-mode" value="ovOnly" class="mt-0.5 accent-blue-500">
+                    <div>
+                        <div class="font-semibold text-slate-800 text-sm">仅定制内容</div>
+                        <div class="text-xs text-slate-500 mt-0.5">只保留定制后的最终值，不含全局原始数据；未定制字段显示继承的全局值</div>
+                    </div>
+                </label>
+            </div>
+        </div>
+        <div class="px-6 py-4 bg-slate-50 flex justify-end gap-3 border-t border-slate-100">
+            <button onclick="document.getElementById('exportOverrideModal').classList.add('hidden')"
+                class="px-4 py-2 text-sm text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 transition">取消</button>
+            <button onclick="confirmExportOverride()"
+                class="px-5 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition">确认导出</button>
+        </div>
+    </div>
+</div>
+
+<div id="deprecateConfirmModal" class="fixed inset-0 bg-slate-900/60 hidden z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+    <div class="bg-white rounded-xl w-[400px] shadow-2xl overflow-hidden">
+        <div class="px-6 py-5">
+            <div class="flex items-start gap-4">
+                <div class="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                    <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                </div>
+                <div>
+                    <h3 class="font-bold text-slate-800 mb-1">确认弃用此规则？</h3>
+                    <p class="text-sm text-slate-500">规则 <span id="deprecate-rule-code" class="font-mono font-bold text-slate-700"></span> 将被标记为已弃用，不会从数据库中删除，可随时恢复。</p>
+                </div>
+            </div>
+        </div>
+        <div class="px-6 py-4 border-t bg-slate-50 flex justify-end gap-3">
+            <button onclick="closeDeprecateModal()" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-200 rounded transition">取消</button>
+            <button onclick="confirmDeprecateDispatch()" class="px-5 py-2 bg-red-500 text-white rounded font-bold text-sm hover:bg-red-600 transition">确认弃用</button>
+        </div>
+    </div>
+</div>
+
+<div id="toast-container" class="fixed bottom-6 right-6 z-[300] flex flex-col gap-2 pointer-events-none"></div>
+<div id="sync-indicator" style="position:fixed;bottom:12px;right:16px;z-index:999;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.9);box-shadow:0 1px 4px rgba(0,0,0,.15);font-size:12px;"></div>
+<script src="js/config.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

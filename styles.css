@@ -1,0 +1,36 @@
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+.tab-active { border-bottom: 3px solid #2563eb; color: #2563eb; font-weight: 600; background-color: #f8fafc; }
+.tab-inactive { color: #6b7280; font-weight: 400; }
+.tab-inactive:hover { color: #374151; background-color: #f1f5f9; }
+.error-ring { border-color: #ef4444 !important; outline: 2px solid #ef4444 !important; background-color: #fef2f2 !important; }
+.gender-tag-all { background-color: #f3f4f6; color: #374151; border: 1px solid #e5e7eb; }
+.gender-tag-male { background-color: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+.gender-tag-female { background-color: #fdf2f8; color: #be185d; border: 1px solid #fbcfe8; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+.custom-scroll::-webkit-scrollbar { width: 4px; }
+.custom-scroll::-webkit-scrollbar-thumb { background: #9ca3af; border-radius: 2px; }
+.is-overridden { border-left: 4px solid #f59e0b !important; background-color: #fffbeb; }
+.tag-override { background-color: #f59e0b; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; }
+@keyframes slideInUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.toast-enter { animation: slideInUp 0.3s ease-out forwards; }
+.ov-source-card { cursor: pointer; background: white; border-radius: 12px; border: 2px solid #e2e8f0; padding: 24px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; transition: all 0.2s; }
+.ov-source-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.1); }
+
+/* ── 已弃用行 ── */
+.deprecated-row { background-color: #f8fafc !important; border-left: 3px solid #cbd5e1 !important; }
+.deprecated-row td { color: #94a3b8 !important; }
+.deprecated-row .sticky { background-color: #f8fafc !important; }
+.deprecated-badge { display: inline-block; background: #e2e8f0; color: #64748b; font-size: 10px; padding: 1px 5px; border-radius: 3px; margin-left: 4px; vertical-align: middle; font-weight: 600; }
+
+/* ── 修改记录列（默认隐藏） ── */
+.hide-modify-cols .modify-col { display: none !important; }
+
+/* ── 登录页动画 ── */
+@keyframes fadeInScale { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+.login-card-anim { animation: fadeInScale 0.3s ease-out forwards; }
+
+/* ── 同步状态指示器 ── */
+#sync-indicator { transition: opacity 0.3s; }
