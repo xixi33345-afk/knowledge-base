@@ -81,7 +81,6 @@ function loadAllDataAndListen() {
             wordRootsDB = Array.isArray(val) ? val : Object.values(val);
             renderWordRootTable();
             updateWrDeprecatedBtnText();
-            saveWordRootsToDB();
         } else if (!val) {
             wordRootsDB = [];
             renderWordRootTable();
@@ -162,6 +161,194 @@ let showOvModifyInfo = false;
 let showWrDeprecated = true;
 let showWrModifyInfo = false;
 
+// ══════════════════════════════════════════
+// Excel 式按列筛选
+// ══════════════════════════════════════════
+let columnFilters = {};       // 规则表筛选 { fieldName: Set(['值1','值2']) }
+let wrColumnFilters = {};     // 词根表筛选
+let _colFilterField = null;   // 当前打开的筛选列名
+let _colFilterOptions = [];   // 当前列所有可选值
+let _colFilterSelected = new Set(); // 临时勾选状态
+let _colFilterTarget = 'rule'; // 'rule' 或 'wr'
+
+const COL_FILTER_LABELS = {
+    rule_code: '规则编号', gender: '人群', dept: '科室', part: '部位',
+    severity: '严重程度', label: '标签',
+};
+const WR_COL_FILTER_LABELS = {
+    category: '项目分类', dept: '科室', part: '部位/检验组套',
+    belong: '所属情况', rough: '词根粗分', fine: '词根细分',
+};
+
+// 从规则转写中提取【】内的词条
+function extractBracketTerms(expression) {
+    if (!expression) return '';
+    const matches = [...expression.matchAll(/【([^】]+)】/g)].map(m => '【' + m[1] + '】');
+    return matches.join('');
+}
+
+function openColFilter(field, target) {
+    _colFilterTarget = target || 'rule';
+    _colFilterField = field;
+    const labels = _colFilterTarget === 'wr' ? WR_COL_FILTER_LABELS : COL_FILTER_LABELS;
+    const title = labels[field] || field;
+    document.getElementById('colFilterTitle').textContent = '筛选 - ' + title;
+    document.getElementById('colFilterSearch').value = '';
+
+    // 收集该列所有唯一值
+    const valSet = new Set();
+    const dataSource = _colFilterTarget === 'wr' ? wordRootsDB : globalRulesDB;
+    dataSource.forEach(r => {
+        const v = String(r[field] ?? '').trim();
+        if (v) valSet.add(v);
+    });
+    _colFilterOptions = [...valSet].sort();
+
+    // 如果当前已有筛选，用已保存的选中集合；否则默认全选
+    const filters = _colFilterTarget === 'wr' ? wrColumnFilters : columnFilters;
+    if (filters[field]) {
+        _colFilterSelected = new Set(filters[field]);
+    } else {
+        _colFilterSelected = new Set(_colFilterOptions);
+    }
+
+    renderColFilterOptions();
+    document.getElementById('colFilterModal').classList.remove('hidden');
+}
+
+function renderColFilterOptions(search = '') {
+    const s = search.toLowerCase();
+    const items = _colFilterOptions.filter(o => !s || o.toLowerCase().includes(s));
+    document.getElementById('colFilterOptions').innerHTML = items.map(v => `
+        <label class="flex items-center gap-2 px-2 py-1.5 hover:bg-blue-50 rounded cursor-pointer text-sm">
+            <input type="checkbox" value="${v.replace(/"/g,'&quot;')}" ${_colFilterSelected.has(v)?'checked':''} onchange="toggleColFilterItem(this)" class="rounded">
+            <span class="truncate">${v}</span>
+        </label>
+    `).join('') || '<div class="p-3 text-xs text-slate-400 text-center">无匹配项</div>';
+}
+
+function filterColOptions() {
+    renderColFilterOptions(document.getElementById('colFilterSearch').value);
+}
+
+function toggleColFilterItem(cb) {
+    if (cb.checked) _colFilterSelected.add(cb.value);
+    else _colFilterSelected.delete(cb.value);
+}
+
+function selectAllColFilter() {
+    _colFilterOptions.forEach(v => _colFilterSelected.add(v));
+    renderColFilterOptions(document.getElementById('colFilterSearch').value);
+}
+
+function deselectAllColFilter() {
+    _colFilterSelected.clear();
+    renderColFilterOptions(document.getElementById('colFilterSearch').value);
+}
+
+function applyColFilter() {
+    const filters = _colFilterTarget === 'wr' ? wrColumnFilters : columnFilters;
+    if (_colFilterSelected.size === _colFilterOptions.length) {
+        delete filters[_colFilterField];
+    } else {
+        filters[_colFilterField] = new Set(_colFilterSelected);
+    }
+    closeColFilter();
+    if (_colFilterTarget === 'wr') {
+        renderWordRootTable();
+        updateWrActiveFiltersBar();
+    } else {
+        renderManageTable();
+        updateActiveFiltersBar();
+    }
+}
+
+function closeColFilter() {
+    document.getElementById('colFilterModal').classList.add('hidden');
+}
+
+function clearAllFilters(target) {
+    if (target === 'wr') {
+        wrColumnFilters = {};
+        renderWordRootTable();
+        updateWrActiveFiltersBar();
+    } else {
+        columnFilters = {};
+        renderManageTable();
+        updateActiveFiltersBar();
+    }
+}
+
+function removeOneFilter(field, target) {
+    if (target === 'wr') {
+        delete wrColumnFilters[field];
+        renderWordRootTable();
+        updateWrActiveFiltersBar();
+    } else {
+        delete columnFilters[field];
+        renderManageTable();
+        updateActiveFiltersBar();
+    }
+}
+
+function updateActiveFiltersBar() {
+    const keys = Object.keys(columnFilters);
+    const bar = document.getElementById('active-filters-bar');
+    const tags = document.getElementById('active-filters-tags');
+    if (keys.length === 0) { bar.classList.add('hidden'); return; }
+    bar.classList.remove('hidden');
+    tags.innerHTML = keys.map(k => {
+        const label = COL_FILTER_LABELS[k] || k;
+        const count = columnFilters[k].size;
+        return `<span class="inline-flex items-center gap-1 bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-medium">
+            ${label}(${count})
+            <button onclick="removeOneFilter('${k}')" class="hover:text-red-500 font-bold">&times;</button>
+        </span>`;
+    }).join('');
+}
+
+// 对规则列表应用列筛选
+function applyColumnFilters(rules) {
+    const keys = Object.keys(columnFilters);
+    if (keys.length === 0) return rules;
+    return rules.filter(r => {
+        return keys.every(field => {
+            const v = String(r[field] ?? '').trim();
+            return columnFilters[field].has(v);
+        });
+    });
+}
+
+// 词根表筛选标签栏
+function updateWrActiveFiltersBar() {
+    const keys = Object.keys(wrColumnFilters);
+    const bar = document.getElementById('wr-active-filters-bar');
+    const tags = document.getElementById('wr-active-filters-tags');
+    if (!bar) return;
+    if (keys.length === 0) { bar.classList.add('hidden'); return; }
+    bar.classList.remove('hidden');
+    tags.innerHTML = keys.map(k => {
+        const label = WR_COL_FILTER_LABELS[k] || k;
+        const count = wrColumnFilters[k].size;
+        return `<span class="inline-flex items-center gap-1 bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-medium">
+            ${label}(${count})
+            <button onclick="removeOneFilter('${k}','wr')" class="hover:text-red-500 font-bold">&times;</button>
+        </span>`;
+    }).join('');
+}
+
+// 对词根列表应用列筛选
+function applyWrColumnFilters(rows) {
+    const keys = Object.keys(wrColumnFilters);
+    if (keys.length === 0) return rows;
+    return rows.filter(r => {
+        return keys.every(field => {
+            const v = String(r[field] ?? '').trim();
+            return wrColumnFilters[field].has(v);
+        });
+    });
+}
+
 function today() {
     return new Date().toISOString().slice(0, 10);
 }
@@ -212,6 +399,7 @@ function exportExcel() {
         '适用人群': r.gender === '男女通用' ? '' : r.gender,
         '科室':     r.dept,
         '部位':     r.part,
+        '可合并词条': r.mergeable || extractBracketTerms(r.expression),
         '严重程度': r.severity === 0 ? '' : r.severity,
         '标签':     r.label,
         '规则转写': r.expression,
@@ -220,7 +408,7 @@ function exportExcel() {
         '修改人':   r.updatedBy || '',
     }));
     const ws = XLSX.utils.json_to_sheet(exportData);
-    ws['!cols'] = [{wch:8},{wch:15},{wch:10},{wch:15},{wch:15},{wch:10},{wch:20},{wch:40},{wch:60},{wch:12},{wch:12}];
+    ws['!cols'] = [{wch:8},{wch:15},{wch:10},{wch:15},{wch:15},{wch:30},{wch:10},{wch:20},{wch:40},{wch:60},{wch:12},{wch:12}];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "全局规则库");
     XLSX.writeFile(wb, `标准库_${today()}.xlsx`);
@@ -262,6 +450,7 @@ function exportOverrideExcel(includeGlobal = true) {
                 '全局严重程度': base.severity === 0 ? '' : base.severity,
                 '定制严重程度': ov.severity   !== undefined ? ov.severity   : '',
                 '全局标签':     base.label,           '定制标签':     ov.label      !== undefined ? ov.label      : '',
+                '可合并词条':   base.mergeable || extractBracketTerms(base.expression),
                 '全局规则转写': base.expression,
                 '定制规则转写': ov.expression !== undefined ? ov.expression : '',
                 '全局主检建议': base.advice,
@@ -285,6 +474,7 @@ function exportOverrideExcel(includeGlobal = true) {
                 '部位':       ov.part       !== undefined ? ov.part       : base.part,
                 '严重程度':   ov.severity   !== undefined ? ov.severity   : (base.severity === 0 ? '' : base.severity),
                 '标签':       ov.label      !== undefined ? ov.label      : base.label,
+                '可合并词条': base.mergeable || extractBracketTerms(ov.expression !== undefined ? ov.expression : base.expression),
                 '规则转写':   ov.expression !== undefined ? ov.expression : base.expression,
                 '主检建议':   ov.advice     !== undefined ? ov.advice     : base.advice,
                 '修改日期':   ov.updatedAt  || '',
@@ -325,6 +515,7 @@ function importExcel(event) {
                     severity: parseInt(getExcelValue(row, ['严重程度','严重度'])) || 0,
                     label: getExcelValue(row, ['标签','结论标签','结论词']),
                     expression: getExcelValue(row, ['规则转写','表达式','规则表达式']),
+                    mergeable: getExcelValue(row, ['可合并词条','合并词条','mergeable']),
                     advice: getExcelValue(row, ['主检建议','建议','结论建议']),
                     isDeprecated: false,
                     updatedAt: today(),
@@ -360,13 +551,14 @@ function importExcel(event) {
 function renderManageTable() {
     let rules = [...globalRulesDB].sort((a,b) => b.severity - a.severity);
     if (!showDeprecated) rules = rules.filter(r => !r.isDeprecated);
+    rules = applyColumnFilters(rules);
 
     if (rules.length === 0) {
         const msg = globalRulesDB.length === 0
             ? '暂无数据，请点击右上角导入 Excel'
-            : '所有弃用规则已隐藏，点击"显示已弃用"查看';
+            : (Object.keys(columnFilters).length > 0 ? '无符合筛选条件的规则' : '所有弃用规则已隐藏，点击"显示已弃用"查看');
         document.getElementById('mergeTableBody').innerHTML =
-            `<tr><td colspan="11" class="p-8 text-center text-slate-400">${msg}</td></tr>`;
+            `<tr><td colspan="12" class="p-8 text-center text-slate-400">${msg}</td></tr>`;
         return;
     }
 
@@ -375,6 +567,7 @@ function renderManageTable() {
         const severityClass = dep ? 'bg-slate-100 text-slate-400 border-slate-200' : 'bg-red-50 text-red-600 border-red-200';
         const labelClass    = dep ? 'bg-slate-50 text-slate-400 border-slate-200' : 'bg-yellow-50 text-slate-700 border-yellow-200 font-medium';
         const codeClass     = dep ? 'line-through text-slate-400' : 'text-slate-700 font-bold';
+        const mergeable = r.mergeable || extractBracketTerms(r.expression);
         return `
         <tr class="${dep ? 'deprecated-row' : 'hover:bg-blue-50/30 transition'}">
             <td class="p-3 font-mono text-xs ${codeClass}">
@@ -394,6 +587,7 @@ function renderManageTable() {
             <td class="p-3 text-xs max-w-[140px]">
                 <span class="px-2 py-1 rounded border text-xs block break-words ${labelClass}">${r.label || '-'}</span>
             </td>
+            <td class="p-3 text-xs max-w-[140px] truncate ${dep ? 'text-slate-400' : 'text-green-700'}" title="${mergeable}">${mergeable || '-'}</td>
             <td class="p-3 max-w-[180px]">
                 <code class="text-[11px] ${dep ? 'text-slate-400' : 'text-blue-700'} bg-slate-100 p-1.5 rounded block truncate" title="${r.expression || ''}">${r.expression || '-'}</code>
             </td>
@@ -1042,12 +1236,13 @@ function openMergeModal(id = null) {
         document.getElementById('fm-part').value = r.part || '';
         document.getElementById('fm-severity').value = r.severity;
         document.getElementById('fm-label').value = r.label;
+        document.getElementById('fm-mergeable').value = r.mergeable || extractBracketTerms(r.expression);
         document.getElementById('fm-expression').value = r.expression;
         document.getElementById('fm-advice').value = r.advice;
     } else {
         document.getElementById('fm-code').value = 'ZJHB' + Math.floor(Math.random()*10000);
         ['fm-gender'].forEach(() => document.getElementById('fm-gender').value = '男女通用');
-        ['fm-dept','fm-part','fm-label','fm-expression','fm-advice'].forEach(f => document.getElementById(f).value = '');
+        ['fm-dept','fm-part','fm-label','fm-mergeable','fm-expression','fm-advice'].forEach(f => document.getElementById(f).value = '');
         document.getElementById('fm-severity').value = '';
     }
 }
@@ -1111,6 +1306,7 @@ function saveMergeRule() {
         label: document.getElementById('fm-label').value,
         expression: document.getElementById('fm-expression').value,
         advice: document.getElementById('fm-advice').value,
+        mergeable: document.getElementById('fm-mergeable').value,
         isDeprecated: existingRule ? existingRule.isDeprecated : false,
         updatedAt: today(),
         updatedBy: currentUser ? currentUser.displayName : '-',
@@ -1256,12 +1452,13 @@ function renderWordRootTable() {
         (r.part    || '').toLowerCase().includes(q) ||
         (r.ai_basis|| '').toLowerCase().includes(q)
     );
+    rows = applyWrColumnFilters(rows);
 
     const tbody = document.getElementById('wrTableBody');
     if (rows.length === 0) {
         const msg = wordRootsDB.length === 0
             ? '暂无数据，请点击右上角导入 Excel'
-            : q ? '无匹配结果' : '所有弃用词根已隐藏，点击"显示已弃用"查看';
+            : (q || Object.keys(wrColumnFilters).length > 0) ? '无符合筛选条件的词根' : '所有弃用词根已隐藏，点击"显示已弃用"查看';
         tbody.innerHTML = `<tr><td colspan="10" class="p-8 text-center text-slate-400">${msg}</td></tr>`;
         return;
     }
